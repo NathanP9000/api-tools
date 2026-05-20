@@ -251,8 +251,8 @@ func WriteJSON(filepath string, data interface{}) error {
 	defer fptr.Close()
 	encoder := json.NewEncoder(fptr)
 	encoder.SetIndent("", "\t")
-	encoder.Encode(data)
-	return nil
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(data)
 }
 
 // GetAllFilesWithExtension recursively gathers file paths within inDir that match extension.
@@ -347,4 +347,35 @@ func ConvertFromInterface[T string | float64](value any) *T {
 		return &parsed
 	}
 	return nil
+}
+
+type LinkResult struct {
+	Text string
+	Href string
+}
+
+func ExtractTextAndHref(nodes []*cdp.Node, chromedpCtx context.Context) []LinkResult {
+	output := []LinkResult{}
+	var err error
+
+	// Extract href and text
+	for _, n := range nodes {
+		var href, text string
+		// Get href attribute
+		for i := 0; i < len(n.Attributes); i += 2 {
+			if n.Attributes[i] == "href" {
+				href = n.Attributes[i+1]
+			}
+		}
+		// Get inner text
+		err = chromedp.Run(chromedpCtx,
+			chromedp.TextContent(fmt.Sprintf(`a[href="%s"]`, href), &text, chromedp.ByQuery),
+		)
+		if err != nil {
+			panic(err)
+		}
+		output = append(output, LinkResult{text, href})
+	}
+
+	return output
 }
